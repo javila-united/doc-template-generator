@@ -341,12 +341,12 @@ function fillParagraphPlaceholders(paragraph, values, wordNs, xmlNs) {
   let match;
 
   while ((match = placeholderRe.exec(fullText)) !== null) {
-    const key = normalizePlaceholderKey(match[1]);
-    if (Object.prototype.hasOwnProperty.call(values, key)) {
+    const placeholder = parsePlaceholderExpression(match[1]);
+    if (Object.prototype.hasOwnProperty.call(values, placeholder.key)) {
       matches.push({
         start: match.index,
         end: match.index + match[0].length,
-        value: String(values[key]),
+        value: applyPlaceholderTransform(values[placeholder.key], placeholder.transform),
       });
     }
   }
@@ -406,6 +406,25 @@ function buildNormalizedValueMap(values) {
     normalized[normalizePlaceholderKey(key)] = value;
   });
   return normalized;
+}
+
+function parsePlaceholderExpression(rawExpression) {
+  const expression = normalizePlaceholderKey(rawExpression);
+  const parts = expression.split("|");
+
+  return {
+    key: normalizePlaceholderKey(parts[0] || ""),
+    transform: normalizePlaceholderKey(parts[1] || "").toLowerCase(),
+  };
+}
+
+function applyPlaceholderTransform(value, transform) {
+  const stringValue = String(value);
+
+  if (transform === "upper") return stringValue.toUpperCase();
+  if (transform === "lower") return stringValue.toLowerCase();
+
+  return stringValue;
 }
 
 function normalizePlaceholderKey(key) {
