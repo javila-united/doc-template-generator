@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rockwell Goldmann — Document Generator</title>
+
+    <!-- docxtemplater + dependencies (CDN, no install needed) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docxtemplater@3.47.4/build/docxtemplater.js"></script>
+
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- ── Header ── -->
+    <header>
+      <div class="logo">Rockwell Goldmann Properties <span>Document Generator</span></div>
+      <button class="back-btn" id="backBtn" onclick="showHome()">&#8592; Back to Templates</button>
+    </header>
+
+    <!-- ── HOME VIEW ── -->
+    <div id="view-home" class="view active">
+      <div class="home-hero">
+        <h1>Document Generator</h1>
+        <p>Select a template below to fill in the fields and generate your document.</p>
+      </div>
+
+      <div class="cards-grid">
+        <div class="template-card" onclick="showForm('rare')">
+          <div class="card-icon">&#128196;</div>
+          <div class="card-title">
+            Note &amp; Deed of Trust<br /><small style="font-weight: 400; font-size: 0.85rem">RARE Template</small>
+          </div>
+          <div class="card-desc">
+            Real Estate Note and Deed of Trust for Real American Real Estate LLC transactions.
+          </div>
+          <div class="card-fields">8 fields</div>
+          <div class="card-arrow">Fill out form &#8594;</div>
+        </div>
+
+        <div class="template-card" onclick="showForm('protected')">
+          <div class="card-icon">&#128274;</div>
+          <div class="card-title">
+            Note &amp; Deed of Trust<br /><small style="font-weight: 400; font-size: 0.85rem"
+              >Protected Series Template</small
+            >
+          </div>
+          <div class="card-desc">Real Estate Note and Deed of Trust for Protected Series entities.</div>
+          <div class="card-fields">10 fields</div>
+          <div class="card-arrow">Fill out form &#8594;</div>
+        </div>
+
+        <div class="template-card" onclick="showForm('loan')">
+          <div class="card-icon">&#128176;</div>
+          <div class="card-title">
+            Capital Loan Agreement<br /><small style="font-weight: 400; font-size: 0.85rem">Investors Template</small>
+          </div>
+          <div class="card-desc">Short-term capital loan agreement for investor funding of property purchases.</div>
+          <div class="card-fields">10 fields</div>
+          <div class="card-arrow">Fill out form &#8594;</div>
+        </div>
+
+        <div class="template-card" onclick="showForm('payoff1')">
+          <div class="card-icon">&#128200;</div>
+          <div class="card-title">
+            Payoff Letter<br /><small style="font-weight: 400; font-size: 0.85rem">1 Lien</small>
+          </div>
+          <div class="card-desc">Payoff letter for properties with a single deed of trust lien.</div>
+          <div class="card-fields">10 fields</div>
+          <div class="card-arrow">Fill out form &#8594;</div>
+        </div>
+
+        <div class="template-card" onclick="showForm('payoff2')">
+          <div class="card-icon">&#128202;</div>
+          <div class="card-title">
+            Payoff Letter<br /><small style="font-weight: 400; font-size: 0.85rem">2 Liens</small>
+          </div>
+          <div class="card-desc">Payoff letter for properties with two deeds of trust (first and second lien).</div>
+          <div class="card-fields">14 fields</div>
+          <div class="card-arrow">Fill out form &#8594;</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FORM VIEW ── -->
+    <div id="view-form" class="view">
+      <div class="form-page">
+        <div class="form-header">
+          <h2 id="form-title"></h2>
+          <p id="form-subtitle"></p>
+        </div>
+
+        <form id="docForm" novalidate>
+          <div id="form-fields-container"></div>
+
+          <hr class="divider" />
+
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">&#8595; Generate Document</button>
+            <button type="button" class="btn btn-secondary" onclick="clearForm()">Clear</button>
+          </div>
+
+          <div id="status"></div>
+        </form>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

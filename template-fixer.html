@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Template Fixer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f0f4f8;
+      color: #1a2636;
+    }
+    header {
+      background: linear-gradient(135deg, #1a3a5c 0%, #2d6a9f 100%);
+      color: #fff;
+      padding: 20px 36px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+    }
+    header h1 {
+      font-size: 1.5rem;
+    }
+    .container {
+      max-width: 900px;
+      margin: 30px auto;
+      padding: 0 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.08);
+      margin-bottom: 20px;
+    }
+    .upload-area {
+      border: 2px dashed #d0d7e2;
+      border-radius: 10px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .upload-area:hover {
+      border-color: #2d6a9f;
+      background: #f8fafc;
+    }
+    .upload-area.dragover {
+      border-color: #2d6a9f;
+      background: #eef4fb;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #1a3a5c, #2d6a9f);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: filter 0.2s;
+    }
+    .btn:hover {
+      filter: brightness(1.08);
+    }
+    .results {
+      margin-top: 20px;
+    }
+    .result-item {
+      background: #f8fafc;
+      border-left: 4px solid #2d6a9f;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+    .result-item h3 {
+      font-size: 1rem;
+      margin-bottom: 10px;
+      color: #1a3a5c;
+    }
+    .placeholders {
+      background: #fff;
+      border: 1px solid #d0d7e2;
+      border-radius: 5px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+    .placeholder-tag {
+      display: inline-block;
+      background: #e6f4ea;
+      color: #256029;
+      padding: 4px 8px;
+      border-radius: 3px;
+      margin: 4px 4px 4px 0;
+      font-size: 0.85rem;
+    }
+    .status {
+      padding: 12px 16px;
+      border-radius: 7px;
+      margin: 15px 0;
+      display: none;
+    }
+    .status.success {
+      background: #e6f4ea;
+      color: #256029;
+      border: 1px solid #a8d5ae;
+      display: block;
+    }
+    .status.error {
+      background: #fdecea;
+      color: #b71c1c;
+      border: 1px solid #f5c6c6;
+      display: block;
+    }
+    .download-btn {
+      background: #256029;
+      margin-top: 10px;
+    }
+    .download-btn:hover {
+      filter: brightness(1.1);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📄 DOCX Template Fixer</h1>
+    <p style="font-size: 0.95rem; opacity: 0.9; margin-top: 5px;">Fix placeholder inconsistencies in your templates</p>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <h2 style="margin-bottom: 20px;">Upload Template DOCX Files</h2>
+      <div class="upload-area" id="uploadArea">
+        <p style="font-size: 1.1rem; margin-bottom: 10px;">📁 Drag and drop DOCX files here</p>
+        <p style="color: #6b7a8d; margin-bottom: 15px;">or click to select files</p>
+        <input type="file" id="fileInput" multiple accept=".docx" />
+        <button class="btn" onclick="document.getElementById('fileInput').click()">Select Files</button>
+      </div>
+    </div>
+
+    <div class="results" id="results"></div>
+  </div>
+
+  <script>
+    const uploadArea = document.getElementById("uploadArea");
+    const fileInput = document.getElementById("fileInput");
+    const resultsDiv = document.getElementById("results");
+
+    uploadArea.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      uploadArea.classList.add("dragover");
+    });
+
+    uploadArea.addEventListener("dragleave", () => {
+      uploadArea.classList.remove("dragover");
+    });
+
+    uploadArea.addEventListener("drop", (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove("dragover");
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      handleFiles(e.target.files);
+    });
+
+    async function handleFiles(files) {
+      resultsDiv.innerHTML = "";
+
+      for (let file of files) {
+        if (!file.name.endsWith(".docx")) {
+          showError(`${file.name} is not a DOCX file`);
+          continue;
+        }
+
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const zip = await JSZip.loadAsync(arrayBuffer);
+          const docXml = await zip.file("word/document.xml").async("string");
+
+          // Find all placeholders
+          const placeholderRegex = /\{\{[^}]+\}\}|\(\([^)]+\)\)|<w:t[^>]*>([^<]*\{[^}]*\}[^<]*)<\/w:t>/g;
+          const placeholders = [];
+          let match;
+
+          while ((match = placeholderRegex.exec(docXml)) !== null) {
+            placeholders.push(match[0]);
+          }
+
+          const uniquePlaceholders = [...new Set(placeholders)];
+
+          // Normalize placeholders to {{KEY}} format
+          let normalizedXml = docXml;
+
+          uniquePlaceholders.forEach((placeholder) => {
+            // Convert ((KEY)) to {{KEY}}
+            const parenthesesMatch = placeholder.match(/\(\(([^)]+)\)\)/);
+            if (parenthesesMatch) {
+              const key = parenthesesMatch[1].trim();
+              normalizedXml = normalizedXml.replace(new RegExp(placeholder.replace(/[()]/g, "\\$&"), "g"), `{{${key}}}`);
+            }
+          });
+
+          // Check if changes were made
+          const hasInconsistencies = normalizedXml !== docXml;
+
+          // Create result card
+          const resultDiv = document.createElement("div");
+          resultDiv.className = "card result-item";
+
+          let html = `<h3>${file.name}</h3>`;
+
+          if (hasInconsistencies) {
+            html += `<div class="status success">✓ Found inconsistencies and normalized to {{KEY}} format</div>`;
+          } else {
+            html += `<div class="status success">✓ All placeholders already use {{KEY}} format</div>`;
+          }
+
+          html += `<p style="margin-bottom: 10px;"><strong>Placeholders found:</strong></p>`;
+          html += `<div class="placeholders">`;
+          uniquePlaceholders.forEach((p) => {
+            const normalized = p.match(/\(\(([^)]+)\)\)/) ? `{{${p.match(/\(\(([^)]+)\)\)/)[1].trim()}}}` : p;
+            html += `<span class="placeholder-tag">${normalized}</span>`;
+          });
+          html += `</div>`;
+
+          if (hasInconsistencies || true) {
+            html += `<button class="btn download-btn" onclick="downloadFixed('${file.name}', event)">⬇ Download Fixed Template</button>`;
+          }
+
+          resultDiv.innerHTML = html;
+          resultsDiv.appendChild(resultDiv);
+
+          // Store normalized XML for download
+          window[`fixedXml_${file.name}`] = { zip, normalizedXml, originalXml: docXml };
+        } catch (error) {
+          showError(`Error processing ${file.name}: ${error.message}`);
+        }
+      }
+    }
+
+    async function downloadFixed(filename, event) {
+      const data = window[`fixedXml_${filename}`];
+      if (!data) return;
+
+      data.zip.file("word/document.xml", data.normalizedXml);
+
+      const blob = await data.zip.generateAsync({
+        type: "blob",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      saveAs(blob, filename);
+    }
+
+    function showError(message) {
+      const errorDiv = document.createElement("div");
+      errorDiv.className = "card result-item";
+      errorDiv.innerHTML = `<div class="status error">⚠ ${message}</div>`;
+      resultsDiv.appendChild(errorDiv);
+    }
+  </script>
+</body>
+</html>
