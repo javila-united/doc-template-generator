@@ -272,7 +272,8 @@ async function generateDocx(values) {
 
     const zip = await JSZip.loadAsync(arrayBuffer);
     let docXml = await zip.file("word/document.xml").async("string");
-    docXml = fillTemplatePlaceholders(docXml, values);
+    const mergedValues = buildTemplateValues(values);
+    docXml = fillTemplatePlaceholders(docXml, mergedValues);
 
     zip.file("word/document.xml", docXml);
 
@@ -287,6 +288,134 @@ async function generateDocx(values) {
     console.error("DOCX generation error:", error);
     throw error;
   }
+}
+
+function buildTemplateValues(values) {
+  const mergedValues = { ...values };
+
+  if (currentTemplate === TEMPLATES.protected) {
+    mergedValues.PERCENT_AMOUNT = calculatePercentAmount(values.PERCENT, values.WRITTEN_PRINCIPALAMOUNT);
+  }
+
+  if (currentTemplate === TEMPLATES.rare) {
+    mergedValues.PERCENT_AMOUNT = calculatePercentAmount(values.PERCENT, values.WRITTEN_AMOUNT);
+  }
+
+  return mergedValues;
+}
+
+function calculatePercentAmount(percentValue, principalValue) {
+  const percent = parsePercentValue(percentValue);
+  const principal = parseCurrencyAmount(principalValue);
+
+  if (percent === null || principal === null) {
+    throw new Error(
+      "Could not calculate PERCENT_AMOUNT. Enter the principal amount starting with a numeric value, like $150,000.00 (One Hundred Fifty Thousand Dollars), and a percent like 5%."
+    );
+  }
+
+  const computedAmount = roundCurrency((principal * percent) / 100);
+  return formatCurrencyWithWords(computedAmount);
+}
+
+function parsePercentValue(value) {
+  const normalized = String(value || "")
+    .replace(/%/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+
+  if (!normalized) return null;
+
+  const parsed = Number(normalized.replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseCurrencyAmount(value) {
+  const match = String(value || "").match(/-?\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)/);
+  if (!match) return null;
+
+  const parsed = Number(match[1].replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function roundCurrency(amount) {
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+
+function formatCurrencyWithWords(amount) {
+  const formattedCurrency = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+
+  const wholeDollars = Math.floor(amount);
+  const cents = Math.round((amount - wholeDollars) * 100);
+  const dollarWords = numberToWords(wholeDollars);
+  const dollarLabel = wholeDollars === 1 ? "Dollar" : "Dollars";
+  const centsSuffix = cents > 0 ? ` and ${String(cents).padStart(2, "0")}/100` : "";
+
+  return `${formattedCurrency} (${dollarWords} ${dollarLabel}${centsSuffix})`;
+}
+
+function numberToWords(value) {
+  if (value === 0) return "Zero";
+
+  const ones = [
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
+  ];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const scales = [
+    { value: 1000000000, label: "Billion" },
+    { value: 1000000, label: "Million" },
+    { value: 1000, label: "Thousand" },
+    { value: 100, label: "Hundred" },
+  ];
+
+  function underOneHundred(num) {
+    if (num < 20) return ones[num];
+    const tenValue = Math.floor(num / 10);
+    const remainder = num % 10;
+    return remainder ? `${tens[tenValue]}-${ones[remainder]}` : tens[tenValue];
+  }
+
+  function toWords(num) {
+    if (num < 100) return underOneHundred(num);
+
+    for (const scale of scales) {
+      if (num >= scale.value) {
+        const lead = Math.floor(num / scale.value);
+        const remainder = num % scale.value;
+        const leadWords = scale.value === 100 ? ones[lead] : toWords(lead);
+        const remainderWords = remainder ? ` ${toWords(remainder)}` : "";
+        return `${leadWords} ${scale.label}${remainderWords}`;
+      }
+    }
+
+    return "";
+  }
+
+  return toWords(value);
 }
 
 function fillTemplatePlaceholders(xml, values) {
