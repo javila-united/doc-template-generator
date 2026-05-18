@@ -63,6 +63,38 @@ const TEMPLATES = {
       },
     ],
   },
+  protectedSecond: {
+    title: "Second Deed of Trust — Protected Series",
+    subtitle: "Protected Series second lien template",
+    file: "templates/Second_DOT_Protected_Series_Template.docx",
+    sections: [
+      {
+        label: "Parties",
+        fields: [
+          { key: "COUNTY_NAME", label: "County Name", hint: "Texas county where the property is located", placeholder: "e.g. Harris" },
+          { key: "BORROWER_NAME", label: "Borrower Name", hint: "Protected series borrower name", placeholder: "e.g. Goldstone Acquisition Group" },
+          { key: "SERIES_NAME", label: "Series Name", hint: "Series entity name used in the acknowledgment", placeholder: "e.g. Goldstone Acquisition Group" },
+          { key: "SIGNATORY", label: "Signatory", hint: "Name used in the signature block", placeholder: "e.g. Maria Molina" },
+          { key: "EXECUTION_MONTH", label: "Execution Month", hint: "Month name used in the execution clause", placeholder: "e.g. May" },
+        ],
+      },
+      {
+        label: "Loan Amount",
+        fields: [
+          { key: "WRITTEN_AMOUNT", label: "Written Amount", hint: "Dollar amount written out in words", placeholder: "e.g. One Hundred Fifty Thousand", wide: true },
+          { key: "CENTS_AMOUNT", label: "Cents Amount", hint: "Cents only, for the /100 portion", placeholder: "e.g. 00" },
+          { key: "AMOUNT", label: "Numeric Amount", hint: "Whole dollar amount used inside parentheses", placeholder: "e.g. 150000" },
+        ],
+      },
+      {
+        label: "Property",
+        fields: [
+          { key: "LEGAL_DESCRIPTION", label: "Legal Description", hint: "As it appears in county records", placeholder: "e.g. Lot 12, Block 3, Sunset Hills Subdivision, Harris County, Texas", textarea: true },
+          { key: "ADDRESS", label: "Property Address", hint: "Street address of the property", placeholder: "e.g. 123 Main St, Houston, TX 77001" },
+        ],
+      },
+    ],
+  },
   loan: {
     title: "Capital Loan Agreement — Investors",
     subtitle: "Short-term investor funding agreement",
@@ -575,7 +607,7 @@ function closestWordParagraph(node, wordNs) {
 }
 
 function buildFilename(values, ext) {
-  const county = (values["Name"] || values["PROTECTEDSERIES_NAME"] || values["DATE"] || "doc")
+  const county = (values["Name"] || values["COUNTY_NAME"] || values["PROTECTEDSERIES_NAME"] || values["BORROWER_NAME"] || values["DATE"] || "doc")
     .replace(/[^A-Za-z0-9]/g, "_")
     .slice(0, 30);
   const ts = new Date().toISOString().slice(0, 10).replace(/-/g, "");
