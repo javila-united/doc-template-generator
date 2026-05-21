@@ -122,6 +122,46 @@ const TEMPLATES = {
       },
     ],
   },
+  loanAgreement: {
+    title: "Loan Agreement",
+    subtitle: "Renewal-focused agreement with conditional date history",
+    file: "templates/LOAN_AGREEMENT_Template.docx",
+    sections: [
+      {
+        label: "Iteration",
+        fields: [
+          {
+            key: "IS_FIRST_ITERATION",
+            label: "Is this the first iteration of the document?",
+            hint: "Choose Yes to hide Date History and keep Renewal Date as entered",
+            type: "radio",
+            defaultValue: "yes",
+            options: [
+              { value: "yes", label: "Yes, first iteration" },
+              { value: "no", label: "No, this is a renewal" },
+            ],
+          },
+        ],
+      },
+      {
+        label: "Dates",
+        fields: [
+          { key: "LOAN_DATE", label: "Loan Date", hint: "Main date used near the document title", placeholder: "e.g. May 21st" },
+          { key: "MATURITY_DATE", label: "Maturity Date", hint: "Date shown for the maturity reference", placeholder: "e.g. July 5th, 2026" },
+          { key: "WRITTEN_DATE", label: "Written Date / Days", hint: "Written wording used for the loan term", placeholder: "e.g. Forty-Five (45)" },
+          {
+            key: "DATE_HISTORY",
+            label: "Date History",
+            hint: "Prior renewal dates, separated naturally as they should appear in the sentence",
+            placeholder: "e.g. June 15th, 2026, September 15th, 2026",
+            visibleWhen: (values) => values.IS_FIRST_ITERATION === "no",
+            requiredWhen: (values) => values.IS_FIRST_ITERATION === "no",
+          },
+          { key: "RENEWAL_DATE", label: "Renewal Date", hint: "Most recent renewal date", placeholder: "e.g. December 15th, 2026" },
+        ],
+      },
+    ],
+  },
   payoff1: {
     title: "Payoff Letter — 1 Lien",
     subtitle: "Single Deed of Trust payoff statement",
@@ -224,26 +264,52 @@ function renderFields(tpl) {
     section.fields.forEach((field) => {
       const fg = document.createElement("div");
       fg.className = "field-group";
+      fg.dataset.fieldKey = field.key;
 
       const lbl = document.createElement("label");
-      lbl.setAttribute("for", "field_" + field.key);
+      if (field.type !== "radio") {
+        lbl.setAttribute("for", getFieldId(field));
+      }
       lbl.innerHTML = field.label + (field.hint ? `<span class="hint">${field.hint}</span>` : "");
       fg.appendChild(lbl);
 
-      if (field.textarea) {
+      if (field.type === "radio") {
+        const radioGroup = document.createElement("div");
+        radioGroup.className = "radio-group";
+        radioGroup.id = getFieldGroupId(field);
+
+        field.options.forEach((option, index) => {
+          const optionLabel = document.createElement("label");
+          optionLabel.className = "radio-option";
+
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = field.key;
+          radio.value = option.value;
+          radio.id = `${getFieldId(field)}_${index}`;
+          radio.checked = (field.defaultValue || "") === option.value;
+
+          const optionText = document.createElement("span");
+          optionText.textContent = option.label;
+
+          optionLabel.appendChild(radio);
+          optionLabel.appendChild(optionText);
+          radioGroup.appendChild(optionLabel);
+        });
+
+        fg.appendChild(radioGroup);
+      } else if (field.textarea) {
         const ta = document.createElement("textarea");
-        ta.id = "field_" + field.key;
+        ta.id = getFieldId(field);
         ta.name = field.key;
         ta.placeholder = field.placeholder || "";
-        ta.required = true;
         fg.appendChild(ta);
       } else {
         const inp = document.createElement("input");
         inp.type = "text";
-        inp.id = "field_" + field.key;
+        inp.id = getFieldId(field);
         inp.name = field.key;
         inp.placeholder = field.placeholder || "";
-        inp.required = true;
         fg.appendChild(inp);
       }
 
@@ -255,31 +321,38 @@ function renderFields(tpl) {
     hr.className = "divider";
     container.appendChild(hr);
   });
+
+  bindFieldInteractions();
+  updateConditionalFields();
 }
 
 function collectValues() {
-  const values = {};
+  const values = readCurrentValues();
   let valid = true;
+
   currentTemplate.sections.forEach((section) => {
     section.fields.forEach((field) => {
-      const el = document.getElementById("field_" + field.key);
-      el.classList.remove("error");
-      const val = el.value.trim();
-      if (!val) {
-        el.classList.add("error");
+      clearFieldError(field);
+
+      if (!isFieldVisible(field, values)) {
+        return;
+      }
+
+      const val = values[field.key];
+      if (isFieldRequired(field, values) && !val) {
+        markFieldError(field);
         valid = false;
       }
-      values[field.key] = val;
     });
   });
+
   return valid ? values : null;
 }
 
 function clearForm() {
-  document.querySelectorAll("#form-fields-container input, #form-fields-container textarea").forEach((el) => {
-    el.value = "";
-    el.classList.remove("error");
-  });
+  if (currentTemplate) {
+    renderFields(currentTemplate);
+  }
   clearStatus();
 }
 
@@ -331,6 +404,15 @@ function buildTemplateValues(values) {
 
   if (currentTemplate === TEMPLATES.rare) {
     mergedValues.PERCENT_AMOUNT = calculatePercentAmount(values.PERCENT, values.WRITTEN_AMOUNT);
+  }
+
+  if (currentTemplate === TEMPLATES.loanAgreement) {
+    const isFirstIteration = values.IS_FIRST_ITERATION === "yes";
+    const dateHistory = String(values.DATE_HISTORY || "").trim();
+    const renewalDate = String(values.RENEWAL_DATE || "").replace(/^and\s+/i, "").trim();
+
+    mergedValues.DATE_HISTORY = isFirstIteration || !dateHistory ? "" : ` ${dateHistory}`;
+    mergedValues.RENEWAL_DATE = isFirstIteration ? renewalDate : `and ${renewalDate}`;
   }
 
   return mergedValues;
@@ -607,11 +689,113 @@ function closestWordParagraph(node, wordNs) {
 }
 
 function buildFilename(values, ext) {
-  const county = (values["Name"] || values["COUNTY_NAME"] || values["PROTECTEDSERIES_NAME"] || values["BORROWER_NAME"] || values["DATE"] || "doc")
+  const county = (values["Name"] || values["COUNTY_NAME"] || values["PROTECTEDSERIES_NAME"] || values["BORROWER_NAME"] || values["DATE"] || values["LOAN_DATE"] || "doc")
     .replace(/[^A-Za-z0-9]/g, "_")
     .slice(0, 30);
   const ts = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   return `${currentTemplate.title.replace(/[^A-Za-z0-9]/g, "_").slice(0, 40)}_${county}_${ts}.${ext}`;
+}
+
+function getFieldId(field) {
+  return "field_" + field.key;
+}
+
+function getFieldGroupId(field) {
+  return getFieldId(field) + "_group";
+}
+
+function bindFieldInteractions() {
+  document.querySelectorAll("#form-fields-container input, #form-fields-container textarea").forEach((el) => {
+    const eventName = el.type === "radio" ? "change" : "input";
+    el.addEventListener(eventName, handleFieldInteraction);
+  });
+}
+
+function handleFieldInteraction(event) {
+  const field = getFieldByKey(event.target.name);
+  if (field) {
+    clearFieldError(field);
+  }
+
+  updateConditionalFields();
+}
+
+function readCurrentValues() {
+  const values = {};
+
+  currentTemplate.sections.forEach((section) => {
+    section.fields.forEach((field) => {
+      values[field.key] = readFieldValue(field);
+    });
+  });
+
+  return values;
+}
+
+function readFieldValue(field) {
+  if (field.type === "radio") {
+    const selected = document.querySelector(`input[name="${field.key}"]:checked`);
+    return selected ? selected.value : "";
+  }
+
+  const el = document.getElementById(getFieldId(field));
+  return el ? el.value.trim() : "";
+}
+
+function updateConditionalFields() {
+  if (!currentTemplate) return;
+
+  const values = readCurrentValues();
+
+  currentTemplate.sections.forEach((section) => {
+    section.fields.forEach((field) => {
+      const group = document.querySelector(`.field-group[data-field-key="${field.key}"]`);
+      if (!group) return;
+
+      group.classList.toggle("is-hidden", !isFieldVisible(field, values));
+    });
+  });
+}
+
+function isFieldVisible(field, values) {
+  return field.visibleWhen ? field.visibleWhen(values) : true;
+}
+
+function isFieldRequired(field, values) {
+  if (!isFieldVisible(field, values)) return false;
+  if (field.requiredWhen) return field.requiredWhen(values);
+  return field.required !== false;
+}
+
+function getFieldByKey(key) {
+  for (const section of currentTemplate.sections) {
+    const field = section.fields.find((item) => item.key === key);
+    if (field) return field;
+  }
+
+  return null;
+}
+
+function clearFieldError(field) {
+  if (field.type === "radio") {
+    const group = document.getElementById(getFieldGroupId(field));
+    if (group) group.classList.remove("error");
+    return;
+  }
+
+  const el = document.getElementById(getFieldId(field));
+  if (el) el.classList.remove("error");
+}
+
+function markFieldError(field) {
+  if (field.type === "radio") {
+    const group = document.getElementById(getFieldGroupId(field));
+    if (group) group.classList.add("error");
+    return;
+  }
+
+  const el = document.getElementById(getFieldId(field));
+  if (el) el.classList.add("error");
 }
 
 

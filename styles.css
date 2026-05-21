@@ -204,6 +204,10 @@ header .logo span {
   margin-bottom: 18px;
 }
 
+.field-group.is-hidden {
+  display: none;
+}
+
 label {
   display: block;
   font-size: 0.82rem;
@@ -249,6 +253,41 @@ textarea:focus {
 input.error,
 textarea.error {
   border-color: var(--red);
+}
+
+.radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.radio-group.error {
+  border: 1.5px solid #f5c6c6;
+  background: var(--red-bg);
+  border-radius: 7px;
+  padding: 10px;
+}
+
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-bottom: 0;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.radio-option input[type="radio"] {
+  margin: 0;
+  accent-color: var(--blue);
 }
 
 textarea {
@@ -353,4 +392,3 @@ hr.divider {
     transform: rotate(360deg);
   }
 }
-
