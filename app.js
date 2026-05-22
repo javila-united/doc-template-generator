@@ -439,6 +439,7 @@ function buildTemplateValues(values) {
     const loanAmount = parseCurrencyAmount(values.LOAN_AMOUNT);
     const interestPercent = parsePercentValue(values.INTEREST_PERCENT);
     const isScheduled = values.SCHEDULE_TYPE === "yes";
+    const loanAgreementDetails = String(values.LOAN_AGREEMENT_DETAILS || "").trim();
 
     if (loanAmount === null) {
       throw new Error("Enter a valid Loan Amount, like 80,000 or 80000.00.");
@@ -461,12 +462,21 @@ function buildTemplateValues(values) {
     mergedValues.WRITTEN_CALCULATED_INTEREST_AMOUNT = formatAmountWords(calculatedInterestAmount);
     mergedValues.TOTAL_LOAN_AMOUNT = formatCurrencyNumber(totalLoanAmount);
     mergedValues.WRITTEN_TOTAL_LOAN_AMOUNT = formatAmountWords(totalLoanAmount);
+    mergedValues.LOAN_AGREEMENT_DETAILS = isScheduled
+      ? loanAgreementDetails
+      : buildLoanAgreementFallbackDetails(values);
     mergedValues.IS_SCHEDULED = isScheduled
       ? "however periodic interest-only payments shall be required prior to the maturity date."
       : "and no periodic payments shall be required prior to the Maturity Date";
   }
 
   return mergedValues;
+}
+
+function buildLoanAgreementFallbackDetails(values) {
+  const writtenDate = String(values.WRITTEN_DATE || "").trim();
+  const maturityDate = String(values.MATURITY_DATE || "").trim();
+  return `The full loan shall be repaid within ${writtenDate} days, with a maturity date of ${maturityDate}.`;
 }
 
 function calculatePercentAmount(percentValue, principalValue) {
@@ -810,6 +820,11 @@ function handleFieldInteraction(event) {
     clearFieldError(field);
   }
 
+  if (event.target.name === "LOAN_AGREEMENT_DETAILS") {
+    const autoValue = event.target.dataset.autoValue || "";
+    event.target.dataset.isAuto = event.target.value.trim() === autoValue.trim() ? "true" : "false";
+  }
+
   updateConditionalFields();
 }
 
@@ -848,6 +863,8 @@ function updateConditionalFields() {
       group.classList.toggle("is-hidden", !isFieldVisible(field, values));
     });
   });
+
+  syncLoanAgreementDetailsField(values);
 }
 
 function isFieldVisible(field, values) {
@@ -889,6 +906,36 @@ function markFieldError(field) {
 
   const el = document.getElementById(getFieldId(field));
   if (el) el.classList.add("error");
+}
+
+function syncLoanAgreementDetailsField(values) {
+  if (currentTemplate !== TEMPLATES.loanAgreement) return;
+
+  const detailsField = document.getElementById(getFieldId({ key: "LOAN_AGREEMENT_DETAILS" }));
+  if (!detailsField) return;
+
+  const fallbackDetails = buildLoanAgreementFallbackDetails(values);
+  const currentValue = detailsField.value.trim();
+  const autoValue = (detailsField.dataset.autoValue || "").trim();
+  const isAuto = detailsField.dataset.isAuto !== "false";
+  const isScheduled = values.SCHEDULE_TYPE === "yes";
+
+  if (isScheduled) {
+    if (!currentValue || isAuto || currentValue === autoValue) {
+      detailsField.value = "";
+      detailsField.dataset.autoValue = fallbackDetails;
+      detailsField.dataset.isAuto = "false";
+    }
+    return;
+  }
+
+  const shouldUseAutomaticValue = !currentValue || isAuto || currentValue === autoValue;
+
+  if (!shouldUseAutomaticValue) return;
+
+  detailsField.value = fallbackDetails;
+  detailsField.dataset.autoValue = fallbackDetails;
+  detailsField.dataset.isAuto = "true";
 }
 
 
