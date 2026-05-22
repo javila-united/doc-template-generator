@@ -111,13 +111,10 @@ const TEMPLATES = {
       {
         label: "Loan Terms",
         fields: [
-          { key: "WRITTEN_AMOUNT", label: "Principal Amount (written)", hint: "Written out in words", placeholder: "e.g. One Hundred Fifty Thousand", wide: true },
-          { key: "AMOUNT", label: "Principal Amount (numeric)", hint: "Numbers only", placeholder: "e.g. 150,000.00" },
-          { key: "INTEREST_WRITTEN_AMOUNT", label: "Interest Amount (written)", hint: "Written out in words", placeholder: "e.g. Seven Thousand Five Hundred", wide: true },
-          { key: "INTEREST_AMOUNT", label: "Interest Amount (numeric)", hint: "Numbers only", placeholder: "e.g. 7,500.00" },
-          { key: "TOTAL_WRITTEN_AMOUNT", label: "Total Repayment (written)", hint: "Principal + interest in words", placeholder: "e.g. One Hundred Fifty-Seven Thousand Five Hundred", wide: true },
-          { key: "TOTAL_AMOUNT", label: "Total Repayment (numeric)", hint: "Numbers only", placeholder: "e.g. 157,500.00" },
-          { key: "MATURITY_DATE", label: "Maturity Date", hint: "Days or date of repayment", placeholder: "e.g. 45" },
+          { key: "AMOUNT", label: "Principal Amount", hint: "Numbers only; written amount is generated automatically", placeholder: "e.g. 150,000.00" },
+          { key: "INTEREST_RATE", label: "Interest Rate (%)", hint: "Used to calculate the template total automatically", placeholder: "e.g. 5" },
+          { key: "WRITTEN_DATE", label: "Loan Term (written)", hint: "Written-out number of calendar days", placeholder: "e.g. Forty-Five" },
+          { key: "MATURITY_DATE", label: "Maturity Date", hint: "Date the repayment is due", placeholder: "e.g. June 20, 2026" },
         ],
       },
     ],
@@ -432,6 +429,32 @@ function buildTemplateValues(values) {
     mergedValues.PERCENT_AMOUNT = calculatePercentAmount(values.PERCENT, values.WRITTEN_AMOUNT);
   }
 
+  if (currentTemplate === TEMPLATES.loan) {
+    const principalAmount = parseCurrencyAmount(values.AMOUNT);
+    const interestRate = parsePercentValue(values.INTEREST_RATE);
+
+    if (principalAmount === null) {
+      throw new Error("Enter a valid Principal Amount, like 150,000 or 150000.00.");
+    }
+
+    if (interestRate === null) {
+      throw new Error("Enter a valid Interest Rate, like 5 or 12.5.");
+    }
+
+    const calculatedInterestAmount = roundCurrency((principalAmount * interestRate) / 100);
+    const calculatedTotalAmount = roundCurrency(principalAmount + calculatedInterestAmount);
+
+    mergedValues.AMOUNT = formatCurrencyNumber(principalAmount);
+    mergedValues.WRITTEN_AMOUNT = formatAmountWords(principalAmount);
+    mergedValues.WRITTEN_PERCENT_RATE = formatPercentPhrase(interestRate);
+    mergedValues.PERCENT_RATE = formatPercentWithSign(interestRate);
+    mergedValues.PERCENT = formatPercentWithSign(interestRate);
+    mergedValues.INTEREST_AMOUNT = formatCurrencyNumber(calculatedInterestAmount);
+    mergedValues.INTEREST_WRITTEN_AMOUNT = formatAmountWords(calculatedInterestAmount);
+    mergedValues.TOTAL_AMOUNT = formatCurrencyNumber(calculatedTotalAmount);
+    mergedValues.TOTAL_WRITTEN_AMOUNT = formatAmountWords(calculatedTotalAmount);
+  }
+
   if (currentTemplate === TEMPLATES.loanAgreement) {
     const isFirstIteration = values.IS_FIRST_ITERATION === "yes";
     const dateHistory = String(values.DATE_HISTORY || "").trim();
@@ -552,6 +575,14 @@ function formatAmountWords(amount) {
 
 function formatPercentNumber(percent) {
   return Number.isInteger(percent) ? String(percent) : String(percent);
+}
+
+function formatPercentWithSign(percent) {
+  return `${formatPercentNumber(percent)}%`;
+}
+
+function formatPercentPhrase(percent) {
+  return `${formatPercentWords(percent)} Percent`;
 }
 
 function formatPercentWords(percent) {
