@@ -144,6 +144,13 @@ const TEMPLATES = {
         ],
       },
       {
+        label: "Lender",
+        fields: [
+          { key: "LENDER_NAME", label: "Lender Name", hint: "Name shown at the top and signature area", placeholder: "e.g. Rockwell Goldmann Properties LLC" },
+          { key: "LENDER_ADDRESS", label: "Lender Address", hint: "Mailing address of the lender", placeholder: "e.g. 123 Main St, Houston, TX 77001" },
+        ],
+      },
+      {
         label: "Dates",
         fields: [
           { key: "LOAN_DATE", label: "Loan Date", hint: "Main date used near the document title", placeholder: "e.g. May 21st" },
@@ -158,6 +165,25 @@ const TEMPLATES = {
             requiredWhen: (values) => values.IS_FIRST_ITERATION === "no",
           },
           { key: "RENEWAL_DATE", label: "Renewal Date", hint: "Most recent renewal date", placeholder: "e.g. December 15th, 2026" },
+        ],
+      },
+      {
+        label: "Loan Terms",
+        fields: [
+          { key: "LOAN_AMOUNT", label: "Loan Amount", hint: "Numbers only; written amount is generated automatically", placeholder: "e.g. 80,000" },
+          { key: "INTEREST_PERCENT", label: "Interest Percent", hint: "Enter the percent without the % sign if you prefer", placeholder: "e.g. 5" },
+          {
+            key: "SCHEDULE_TYPE",
+            label: "Is this scheduled?",
+            hint: "Controls the periodic payment clause",
+            type: "radio",
+            defaultValue: "no",
+            options: [
+              { value: "yes", label: "Yes, scheduled" },
+              { value: "no", label: "No, not scheduled" },
+            ],
+          },
+          { key: "LOAN_AGREEMENT_DETAILS", label: "Loan Agreement Details", hint: "Additional terms that appear in the body of the agreement", placeholder: "e.g. Borrower may prepay without penalty.", textarea: true },
         ],
       },
     ],
@@ -410,9 +436,34 @@ function buildTemplateValues(values) {
     const isFirstIteration = values.IS_FIRST_ITERATION === "yes";
     const dateHistory = String(values.DATE_HISTORY || "").trim();
     const renewalDate = String(values.RENEWAL_DATE || "").replace(/^and\s+/i, "").trim();
+    const loanAmount = parseCurrencyAmount(values.LOAN_AMOUNT);
+    const interestPercent = parsePercentValue(values.INTEREST_PERCENT);
+    const isScheduled = values.SCHEDULE_TYPE === "yes";
+
+    if (loanAmount === null) {
+      throw new Error("Enter a valid Loan Amount, like 80,000 or 80000.00.");
+    }
+
+    if (interestPercent === null) {
+      throw new Error("Enter a valid Interest Percent, like 5 or 12.5.");
+    }
+
+    const calculatedInterestAmount = roundCurrency((loanAmount * interestPercent) / 100);
+    const totalLoanAmount = roundCurrency(loanAmount + calculatedInterestAmount);
 
     mergedValues.DATE_HISTORY = isFirstIteration || !dateHistory ? "" : ` ${dateHistory}`;
     mergedValues.RENEWAL_DATE = isFirstIteration ? renewalDate : `and ${renewalDate}`;
+    mergedValues.LOAN_AMOUNT = formatCurrencyNumber(loanAmount);
+    mergedValues.WRITTEN_LOAN_AMOUNT = formatAmountWords(loanAmount);
+    mergedValues.INTEREST_PERCENT = formatPercentNumber(interestPercent);
+    mergedValues.WRITTEN_INTEREST_PERCENT = formatPercentWords(interestPercent);
+    mergedValues.CALCULATED_INTEREST_AMOUNT = formatCurrencyNumber(calculatedInterestAmount);
+    mergedValues.WRITTEN_CALCULATED_INTEREST_AMOUNT = formatAmountWords(calculatedInterestAmount);
+    mergedValues.TOTAL_LOAN_AMOUNT = formatCurrencyNumber(totalLoanAmount);
+    mergedValues.WRITTEN_TOTAL_LOAN_AMOUNT = formatAmountWords(totalLoanAmount);
+    mergedValues.IS_SCHEDULED = isScheduled
+      ? "however periodic interest-only payments shall be required prior to the maturity date."
+      : "and no periodic payments shall be required prior to the Maturity Date";
   }
 
   return mergedValues;
@@ -471,6 +522,48 @@ function formatCurrencyWithWords(amount) {
   const centsSuffix = cents > 0 ? ` and ${String(cents).padStart(2, "0")}/100` : "";
 
   return `${formattedCurrency} (${dollarWords} ${dollarLabel}${centsSuffix})`;
+}
+
+function formatCurrencyNumber(amount) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+function formatAmountWords(amount) {
+  const roundedAmount = roundCurrency(amount);
+  const wholeDollars = Math.floor(roundedAmount);
+  const cents = Math.round((roundedAmount - wholeDollars) * 100);
+  const wholeWords = numberToWords(wholeDollars);
+
+  return cents > 0 ? `${wholeWords} and ${String(cents).padStart(2, "0")}/100` : wholeWords;
+}
+
+function formatPercentNumber(percent) {
+  return Number.isInteger(percent) ? String(percent) : String(percent);
+}
+
+function formatPercentWords(percent) {
+  const normalized = String(percent);
+  const parts = normalized.split(".");
+  const wholePart = Number(parts[0] || "0");
+
+  if (parts.length === 1) {
+    return numberToWords(wholePart);
+  }
+
+  const decimalDigits = parts[1].replace(/0+$/, "");
+  if (!decimalDigits) {
+    return numberToWords(wholePart);
+  }
+
+  const digitWords = decimalDigits
+    .split("")
+    .map((digit) => numberToWords(Number(digit)))
+    .join(" ");
+
+  return `${numberToWords(wholePart)} Point ${digitWords}`;
 }
 
 function numberToWords(value) {
