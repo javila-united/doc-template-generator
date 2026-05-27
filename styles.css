@@ -290,6 +290,35 @@ textarea.error {
   accent-color: var(--blue);
 }
 
+.checkbox-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-bottom: 0;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.checkbox-option.error {
+  border-color: #f5c6c6;
+  background: var(--red-bg);
+}
+
+.checkbox-option input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--blue);
+  width: 16px;
+  height: 16px;
+}
+
 textarea {
   resize: vertical;
   min-height: 78px;

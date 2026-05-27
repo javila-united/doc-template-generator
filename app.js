@@ -123,10 +123,21 @@ const TEMPLATES = {
     title: "Loan Agreement",
     subtitle: "Renewal-focused agreement with conditional date history",
     file: "templates/LOAN_AGREEMENT_Template.docx",
+    alternateFiles: {
+      IS_OCANDO_FAMILY: "templates/LOAN_AGREEMENT_Ocando_Template.docx",
+    },
     sections: [
       {
         label: "Iteration",
         fields: [
+          {
+            key: "IS_OCANDO_FAMILY",
+            label: "Is this for Ocando Family?",
+            hint: "Checked uses the Ocando Family version of the template",
+            type: "checkbox",
+            checkboxLabel: "Use Ocando Family template",
+            required: false,
+          },
           {
             key: "IS_FIRST_ITERATION",
             label: "Is this the first iteration of the document?",
@@ -290,7 +301,7 @@ function renderFields(tpl) {
       fg.dataset.fieldKey = field.key;
 
       const lbl = document.createElement("label");
-      if (field.type !== "radio") {
+      if (field.type !== "radio" && field.type !== "checkbox") {
         lbl.setAttribute("for", getFieldId(field));
       }
       lbl.innerHTML = field.label + (field.hint ? `<span class="hint">${field.hint}</span>` : "");
@@ -321,6 +332,23 @@ function renderFields(tpl) {
         });
 
         fg.appendChild(radioGroup);
+      } else if (field.type === "checkbox") {
+        const checkboxLabel = document.createElement("label");
+        checkboxLabel.className = "checkbox-option";
+        checkboxLabel.setAttribute("for", getFieldId(field));
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.id = getFieldId(field);
+        checkbox.name = field.key;
+        checkbox.checked = field.defaultValue === true;
+
+        const checkboxText = document.createElement("span");
+        checkboxText.textContent = field.checkboxLabel || field.label;
+
+        checkboxLabel.appendChild(checkbox);
+        checkboxLabel.appendChild(checkboxText);
+        fg.appendChild(checkboxLabel);
       } else if (field.textarea) {
         const ta = document.createElement("textarea");
         ta.id = getFieldId(field);
@@ -394,8 +422,9 @@ function clearStatus() {
 // ── Fill DOCX template with form values ─────────────────────────────────────
 async function generateDocx(values) {
   try {
-    const resp = await fetch(currentTemplate.file);
-    if (!resp.ok) throw new Error(`Could not load template: ${currentTemplate.file}`);
+    const templateFile = resolveTemplateFile(values);
+    const resp = await fetch(templateFile);
+    if (!resp.ok) throw new Error(`Could not load template: ${templateFile}`);
     const arrayBuffer = await resp.arrayBuffer();
 
     const zip = await JSZip.loadAsync(arrayBuffer);
@@ -877,6 +906,11 @@ function readFieldValue(field) {
     return selected ? selected.value : "";
   }
 
+  if (field.type === "checkbox") {
+    const el = document.getElementById(getFieldId(field));
+    return el && el.checked ? "yes" : "no";
+  }
+
   const el = document.getElementById(getFieldId(field));
   return el ? el.value.trim() : "";
 }
@@ -905,6 +939,7 @@ function isFieldVisible(field, values) {
 function isFieldRequired(field, values) {
   if (!isFieldVisible(field, values)) return false;
   if (field.requiredWhen) return field.requiredWhen(values);
+  if (field.type === "checkbox") return field.required === true;
   return field.required !== false;
 }
 
@@ -924,6 +959,12 @@ function clearFieldError(field) {
     return;
   }
 
+  if (field.type === "checkbox") {
+    const el = document.getElementById(getFieldId(field));
+    if (el) el.closest(".checkbox-option")?.classList.remove("error");
+    return;
+  }
+
   const el = document.getElementById(getFieldId(field));
   if (el) el.classList.remove("error");
 }
@@ -935,8 +976,26 @@ function markFieldError(field) {
     return;
   }
 
+  if (field.type === "checkbox") {
+    const el = document.getElementById(getFieldId(field));
+    if (el) el.closest(".checkbox-option")?.classList.add("error");
+    return;
+  }
+
   const el = document.getElementById(getFieldId(field));
   if (el) el.classList.add("error");
+}
+
+function resolveTemplateFile(values) {
+  if (
+    currentTemplate === TEMPLATES.loanAgreement &&
+    currentTemplate.alternateFiles &&
+    values.IS_OCANDO_FAMILY === "yes"
+  ) {
+    return currentTemplate.alternateFiles.IS_OCANDO_FAMILY;
+  }
+
+  return currentTemplate.file;
 }
 
 function syncLoanAgreementDetailsField(values) {
